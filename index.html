@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0b1020">
+  <title>Snake Arcade — Jogo da Cobrinha</title>
+
+  <style>
+    /* ===== 1. Configurações e identidade visual ===== */
+    :root {
+      color-scheme: dark;
+      --bg: #080d19;
+      --panel: #111a2d;
+      --panel-light: #18243b;
+      --border: #283753;
+      --text: #f1f5ff;
+      --muted: #93a4c3;
+      --green: #65f5a6;
+      --green-dark: #24bc78;
+      --red: #ff6685;
+      --yellow: #ffd166;
+      --radius: 22px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      padding: 28px 16px;
+      display: grid;
+      place-items: center;
+      background:
+        radial-gradient(ellipse at 50% 0%, #1a2946 0%, transparent 55%),
+        var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont,
+        "Segoe UI", sans-serif;
+    }
+
+    button {
+      font: inherit;
+    }
+
+    button:focus-visible {
+      outline: 3px solid var(--yellow);
+      outline-offset: 4px;
+    }
+
+    .app {
+      width: min(100%, 560px);
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 22px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-icon {
+      display: grid;
+      place-items: center;
+      width: 48px;
+      height: 48px;
+      border: 1px solid #3d654f;
+      border-radius: 15px;
+      background: #132c29;
+      color: var(--green);
+      font-size: 28px;
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-size: clamp(20px, 5vw, 27px);
+      line-height: 1.15;
+      letter-spacing: -1px;
+    }
+
+    .brand p {
+      margin: 5px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: 1.7px;
+      text-transform: uppercase;
+    }
+
+    .status {
+      padding: 8px 11px;
+      border: 1px solid var(--border);
+      border-radius: 99px;
+      color: var(--muted);
+      background: #111a2d;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      white-space: nowrap;
+    }
+
+    .status[data-state="playing"] {
+      color: var(--green);
+      border-color: #2c664b;
+    }
+
+    .status[data-state="paused"] {
+      color: var(--yellow);
+      border-color: #776137;
+    }
+
+    .status[data-state="gameover"] {
+      color: var(--red);
+      border-color: #733c4b;
+    }
+
+    /* ===== 2. Painel de pontuação ===== */
+    .scoreboard {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .score-card {
+      padding: 15px 18px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: linear-gradient(145deg, #152039, #10182a);
+    }
+
+    .score-label {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 750;
+      letter-spacing: 1.4px;
+      text-transform: uppercase;
+    }
+
+    .score-value {
+      font-size: 29px;
+      font-weight: 850;
+      line-height: 1.1;
+      font-variant-numeric: tabular-nums;
+    }
+
+    #score {
+      color: var(--green);
+    }
+
+    /* ===== 3. Área de jogo ===== */
+    .game-shell {
+      position: relative;
+      overflow: hidden;
+      padding: 10px;
+      border: 1px solid #30405d;
+      border-radius: var(--radius);
+      background: #111a2b;
+      box-shadow:
+        0 24px 65px #0005,
+        inset 0 1px 0 #ffffff08;
+    }
+
+    .canvas-wrap {
+      position: relative;
+      overflow: hidden;
+      width: 100%;
+      aspect-ratio: 1;
+      border-radius: 13px;
+      background: #0a1220;
+      touch-action: none;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      image-rendering: pixelated;
+    }
+
+    /* ===== 4. Telas de início, pausa e fim ===== */
+    .overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: #080d19c9;
+      backdrop-filter: blur(7px);
+      text-align: center;
+    }
+
+    .overlay[hidden] {
+      display: none;
+    }
+
+    .overlay-content {
+      width: min(100%, 320px);
+      animation: appear 220ms ease-out;
+    }
+
+    @keyframes appear {
+      from {
+        opacity: 0;
+        transform: translateY(8px) scale(.98);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    .overlay-icon {
+      display: grid;
+      place-items: center;
+      width: 72px;
+      height: 72px;
+      margin: 0 auto 20px;
+      border: 1px solid #397255;
+      border-radius: 23px;
+      background: #142e29;
+      color: var(--green);
+      font-size: 36px;
+    }
+
+    .overlay h2 {
+      margin: 0 0 10px;
+      font-size: clamp(27px, 6vw, 36px);
+      letter-spacing: -1.2px;
+    }
+
+    .overlay p {
+      margin: 0 auto 22px;
+      max-width: 280px;
+      color: #b1bfd7;
+      font-size: 14px;
+      line-height: 1.65;
+    }
+
+    .final-score {
+      margin: 4px 0 22px;
+      color: var(--green);
+      font-size: 42px;
+      font-weight: 850;
+    }
+
+    .final-score small {
+      display: block;
+      margin-bottom: 5px;
+      color: var(--muted);
+      font-size: 11px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    /* ===== 5. Botões ===== */
+    .btn {
+      min-height: 48px;
+      padding: 12px 19px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 9px;
+      border: 1px solid transparent;
+      border-radius: 13px;
+      background: var(--green);
+      color: #092017;
+      font-weight: 850;
+      cursor: pointer;
+      transition:
+        transform 130ms ease,
+        background 130ms ease,
+        border-color 130ms ease;
+    }
+
+    .btn:hover {
+      background: #8bffc0;
+      transform: translateY(-2px);
+    }
+
+    .btn:active {
+      transform: translateY(1px) scale(.98);
+    }
+
+    .btn-secondary {
+      border-color: var(--border);
+      background: #18243b;
+      color: var(--text);
+    }
+
+    .btn-secondary:hover {
+      border-color: #536a8e;
+      background: #22324e;
+    }
+
+    .overlay .btn {
+      width: 100%;
+    }
+
+    /* ===== 6. Barra de controles ===== */
+    .toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .toolbar-note {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .toolbar-buttons {
+      display: flex;
+      gap: 8px;
+    }
+
+    .toolbar .btn {
+      min-height: 42px;
+      padding: 9px 13px;
+      font-size: 13px;
+    }
+
+    /* ===== 7. Instruções ===== */
+    .instructions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 22px;
+    }
+
+    .instruction-card {
+      padding: 15px;
+      border: 1px solid var(--border);
+      border-radius: 15px;
+      background: #10192a;
+    }
+
+    .instruction-card h3 {
+      margin: 0 0 10px;
+      font-size: 12px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .instruction-card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.8;
+    }
+
+    kbd {
+      display: inline-block;
+      min-width: 23px;
+      padding: 2px 5px;
+      border: 1px solid #3a4a66;
+      border-radius: 5px;
+      background: #1b2941;
+      color: #e9f0ff;
+      font-family: inherit;
+      font-size: 11px;
+      text-align: center;
+    }
+
+    .footer {
+      margin-top: 20px;
+      color: #647693;
+      font-size: 11px;
+      text-align: center;
+    }
+
+    /* ===== 8. Adaptação para dispositivos menores ===== */
+    @media (max-width: 420px) {
+      body {
+        padding: 18px 12px;
+      }
+
+      .header {
+        margin-bottom: 17px;
+      }
+
+      .brand-icon {
+        width: 42px;
+        height: 42px;
+      }
+
+      .score-card {
+        padding: 12px;
+      }
+
+      .score-value {
+        font-size: 25px;
+      }
+
+      .game-shell {
+        padding: 6px;
+        border-radius: 17px;
+      }
+
+      .overlay {
+        padding: 14px;
+      }
+
+      .overlay-icon {
+        width: 54px;
+        height: 54px;
+        margin-bottom: 12px;
+        border-radius: 17px;
+        font-size: 28px;
+      }
+
+      .overlay p {
+        margin-bottom: 15px;
+        font-size: 12px;
+      }
+
+      .overlay h2 {
+        font-size: 26px;
+      }
+
+      .toolbar-note {
+        font-size: 10px;
+      }
+
+      .toolbar .btn {
+        padding: 8px 10px;
+        font-size: 12px;
+      }
+
+      .instructions {
+        gap: 8px;
+        margin-top: 15px;
+      }
+
+      .instruction-card {
+        padding: 11px;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: .01ms !important;
+        transition-duration: .01ms !important;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="app">
+    <!-- Cabeçalho -->
+    <header class="header">
+      <div class="brand">
+        <div class="brand-icon" aria-hidden="true">蛇</div>
+        <div>
+          <h1>Snake Arcade</h1>
+          <p>Classic game · Modern feel</p>
+        </div>
+      </div>
+      <div class="status" id="status" data-state="ready"
+           aria-live="polite">PRONTO</div>
+    </header>
+
+    <!-- Pontuação -->
+    <section class="scoreboard" aria-label="Placar">
+      <div class="score-card">
+        <span class="score-label">Pontuação</span>
+        <span class="score-value" id="score">000</span>
+      </div>
+      <div class="score-card">
+        <span class="score-label">Recorde da sessão</span>
+        <span class="score-value" id="best">000</span>
+      </div>
+    </section>
+
+    <!-- Tabuleiro -->
+    <section class="game-shell" aria-label="Área do jogo">
+      <div class="canvas-wrap" id="canvasWrap">
+        <canvas id="gameCanvas" width="480" height="480"
+                role="img"
+                aria-label="Tabuleiro do jogo da cobrinha. Use as setas ou WASD para movimentar.">
+        </canvas>
+
+        <!-- Tela inicial -->
+        <div class="overlay" id="startOverlay">
+          <div class="overlay-content">
+            <div class="overlay-icon" aria-hidden="true">▶</div>
+            <h2>Pronto para jogar?</h2>
+            <p>
+              Colete as frutas, aumente sua cobrinha e conquiste
+              a maior pontuação. Só não bata nas paredes nem em você mesmo!
+            </p>
+            <button class="btn" id="startBtn" type="button">
+              <span aria-hidden="true">▶</span> Começar partida
+            </button>
+          </div>
+        </div>
+
+        <!-- Tela de pausa -->
+        <div class="overlay" id="pauseOverlay" hidden>
+          <div class="overlay-content">
+            <div class="overlay-icon" aria-hidden="true">Ⅱ</div>
+            <h2>Jogo pausado</h2>
+            <p>Respire fundo. Sua cobrinha está esperando!</p>
+            <button class="btn" id="resumeBtn" type="button">
+              Continuar jogando
+            </button>
+          </div>
+        </div>
+
+        <!-- Tela de fim -->
+        <div class="overlay" id="gameOverOverlay" hidden>
+          <div class="overlay-content">
+            <div class="overlay-icon" id="endIcon"
+                 aria-hidden="true">↻</div>
+            <h2 id="endTitle">Fim de jogo!</h2>
+            <p id="endMessage">A cobrinha fez uma boa tentativa.</p>
+            <div class="final-score">
+              <small>Pontuação final</small>
+              <span id="finalScore">0</span>
+            </div>
+            <button class="btn" id="restartBtn" type="button">
+              <span aria-hidden="true">↻</span> Jogar novamente
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Controles rápidos -->
+    <div class="toolbar">
+      <div class="toolbar-note" id="gameHint" aria-live="polite">
+        Sua próxima aventura começa agora.
+      </div>
+      <div class="toolbar-buttons">
+        <button class="btn btn-secondary" id="pauseBtn"
+                type="button" aria-label="Pausar jogo" disabled>
+          Ⅱ Pausar
+        </button>
+        <button class="btn btn-secondary" id="resetBtn"
+                type="button" aria-label="Reiniciar partida">
+          ↻ Reiniciar
+        </button>
+      </div>
+    </div>
+
+    <!-- Instruções -->
+    <section class="instructions" aria-label="Como jogar">
+      <div class="instruction-card">
+        <h3>⌨ Controles</h3>
+        <p>
+          <kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd>
+          ou <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd><br>
+          <kbd>Espaço</kbd> Pausar / continuar
+        </p>
+      </div>
+      <div class="instruction-card">
+        <h3>✦ Objetivo</h3>
+        <p>
+          Coma as frutas vermelhas para ganhar pontos.
+          Cada fruta aumenta seu corpo. Evite colisões!
+        </p>
+      </div>
+    </section>
+
+    <footer class="footer">
+      Feito para jogar em qualquer lugar · Recorde salvo neste navegador quando possível
+    </footer>
+  </main>
+
+  <script>
+    "use strict";
+
+    /* ===== 1. Elementos e configuração ===== */
+
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    const elements = {
+      score: document.getElementById("score"),
+      best: document.getElementById("best"),
+      status: document.getElementById("status"),
+      hint: document.getElementById("gameHint"),
+      startOverlay: document.getElementById("startOverlay"),
+      pauseOverlay: document.getElementById("pauseOverlay"),
+      gameOverOverlay: document.getElementById("gameOverOverlay"),
+      finalScore: document.getElementById("finalScore"),
+      endTitle: document.getElementById("endTitle"),
+      endMessage: document.getElementById("endMessage"),
+      endIcon: document.getElementById("endIcon"),
+      startBtn: document.getElementById("startBtn"),
+      resumeBtn: document.getElementById("resumeBtn"),
+      restartBtn: document.getElementById("restartBtn"),
+      pauseBtn: document.getElementById("pauseBtn"),
+      resetBtn: document.getElementById("resetBtn"),
+      canvasWrap: document.getElementById("canvasWrap")
+    };
+
+    const GRID_SIZE = 24;
+    const CELL_SIZE = canvas.width / GRID_SIZE;
+    const INITIAL_LENGTH = 4;
+    const INITIAL_SPEED = 145;
+    const MIN_SPEED = 65;
+    const SPEED_STEP = 3;
+    const POINTS_PER_FOOD = 10;
+
+    const DIRECTIONS = {
+      ArrowUp:    { x: 0, y: -1 },
+      KeyW:       { x: 0, y: -1 },
+      ArrowDown:  { x: 0, y: 1 },
+      KeyS:       { x: 0, y: 1 },
+      ArrowLeft:  { x: -1, y: 0 },
+      KeyA:       { x: -1, y: 0 },
+      ArrowRight: { x: 1, y: 0 },
+      KeyD:       { x: 1, y: 0 }
+    };
+
+    const COLORS = {
+      background: "#0a1220",
+      grid: "rgba(130, 158, 194, 0.075)",
+      snake: "#65f5a6",
+      snakeHead: "#a1ffc9",
+      snakeDark: "#24bc78",
+      food: "#ff6685",
+      foodLight: "#ff9bb0",
+      eye: "#10231c"
+    };
+
+    /* ===== 2. Estado do jogo ===== */
+
+    let snake = [];
+    let food = null;
+    let direction = { x: 1, y: 0 };
+    let nextDirection = { x: 1, y: 0 };
+    let score = 0;
+    let bestScore = loadBestScore();
+    let gameState = "ready";
+
+    let lastFrameTime = 0;
+    let accumulator = 0;
+    let animationFrameId = null;
+    let lastDirectionChangeFrame = -1;
+    let frameNumber = 0;
+
+    // A fila permite registrar entradas antes do próximo passo,
+    // sem aceitar duas curvas que se contradigam no mesmo passo.
+    const turnQueue = [];
+    const MAX_QUEUED_TURNS = 2;
+
+    /* ===== 3. Recorde local ===== */
+
+    function loadBestScore() {
+      try {
+        const value = Number(localStorage.getItem("snakeArcadeBest"));
+        return Number.isFinite(value) && value > 0 ? value : 0;
+      } catch {
+        return 0;
+      }
+    }
+
+    function saveBestScore() {
+      try {
+        localStorage.setItem("snakeArcadeBest", String(bestScore));
+      } catch {
+        // O jogo continua funcionando se o armazenamento estiver bloqueado.
+      }
+    }
+
+    function updateScoreboard() {
+      elements.score.textContent = String(score).padStart(3, "0");
+      elements.best.textContent = String(bestScore).padStart(3, "0");
+    }
+
+    /* ===== 4. Inicialização e reinício ===== */
+
+    function createInitialSnake() {
+      const middle = Math.floor(GRID_SIZE / 2);
+      return Array.from({ length: INITIAL_LENGTH }, (_, index) => ({
+        x: middle - index,
+        y: middle
+      }));
+    }
+
+    function resetGame() {
+      snake = createInitialSnake();
+      direction = { x: 1, y: 0 };
+      nextDirection = { x: 1, y: 0 };
+      turnQueue.length = 0;
+
+      score = 0;
+      accumulator = 0;
+      lastFrameTime = 0;
+      frameNumber = 0;
+      lastDirectionChangeFrame = -1;
+
+      food = generateFood();
+      updateScoreboard();
+      setGameState("ready");
+      drawGame();
+    }
+
+    function startGame() {
+      if (gameState === "playing") return;
+
+      if (gameState === "gameover") {
+        resetGame();
+      }
+
+      if (gameState === "ready") {
+        // O estado inicial já possui uma cobra e uma fruta.
+      }
+
+      turnQueue.length = 0;
+      accumulator = 0;
+      lastFrameTime = 0;
+      setGameState("playing");
+      elements.hint.textContent = "Boa sorte! Pegue a próxima fruta.";
+      requestNextFrame();
+    }
+
+    function restartGame() {
+      resetGame();
+      startGame();
+    }
+
+    function togglePause() {
+      if (gameState === "playing") {
+        setGameState("paused");
+        elements.hint.textContent = "Partida pausada.";
+      } else if (gameState === "paused") {
+        startGame();
+      }
+    }
+
+    /* ===== 5. Estados e interface ===== */
+
+    function setGameState(newState) {
+      gameState = newState;
+
+      elements.startOverlay.hidden = newState !== "ready";
+      elements.pauseOverlay.hidden = newState !== "paused";
+      elements.gameOverOverlay.hidden = newState !== "gameover";
+
+      elements.status.dataset.state = newState;
+
+      const statusLabels = {
+        ready: "PRONTO",
+        playing: "JOGANDO",
+        paused: "PAUSADO",
+        gameover: "FIM DE JOGO",
+        won: "VITÓRIA"
+      };
+
+      elements.status.textContent = statusLabels[newState] || "PRONTO";
+      elements.pauseBtn.disabled =
+        newState !== "playing" && newState !== "paused";
+
+      elements.pauseBtn.textContent =
+        newState === "paused" ? "▶ Continuar" : "Ⅱ Pausar";
+
+      elements.pauseBtn.setAttribute(
+        "aria-label",
+        newState === "paused" ? "Continuar jogo" : "Pausar jogo"
+      );
+    }
+
+    function endGame(won = false) {
+      if (gameState !== "playing") return;
+
+      setGameState("gameover");
+      elements.finalScore.textContent = String(score);
+      elements.endTitle.textContent = won ? "Você venceu!" : "Fim de jogo!";
+      elements.endIcon.textContent = won ? "★" : "↻";
+      elements.endMessage.textContent = won
+        ? "Incrível! Você ocupou todo o tabuleiro."
+        : "Não desista! Mais uma partida e um novo recorde pode surgir.";
+
+      elements.hint.textContent = won
+        ? "Parabéns, você dominou o tabuleiro!"
+        : "Fim da partida. Que tal tentar de novo?";
+
+      drawGame();
+    }
+
+    /* ===== 6. Geração de alimentos ===== */
+
+    function generateFood() {
+      const emptyCells = [];
+
+      for (let y = 0; y < GRID_SIZE; y++) {
+        for (let x = 0; x < GRID_SIZE; x++) {
+          const occupied = snake.some(
+            segment => segment.x === x && segment.y === y
+          );
+
+          if (!occupied) {
+            emptyCells.push({ x, y });
+          }
+        }
+      }
+
+      if (emptyCells.length === 0) {
+        return null;
+      }
+
+      return emptyCells[Math.floor(Math.random() * emptyCells.length)];
+    }
+
+    /* ===== 7. Controles e direção ===== */
+
+    function queueDirection(newDirection) {
+      if (gameState !== "playing") return;
+
+      const reference = turnQueue.length > 0
+        ? turnQueue[turnQueue.length - 1]
+        : direction;
+
+      // Impede inversão direta de 180 graus.
+      if (
+        newDirection.x === -reference.x &&
+        newDirection.y === -reference.y
+      ) {
+        return;
+      }
+
+      // Não permite adicionar curvas redundantes.
+      if (
+        newDirection.x === reference.x &&
+        newDirection.y === reference.y
+      ) {
+        return;
+      }
+
+      if (turnQueue.length < MAX_QUEUED_TURNS) {
+        turnQueue.push(newDirection);
+      }
+    }
+
+    document.addEventListener("keydown", event => {
+      const key = event.code;
+
+      if (
+        key.startsWith("Arrow") ||
+        key === "Space"
+      ) {
+        event.preventDefault();
+      }
+
+      if (key === "Space") {
+        if (gameState === "ready") {
+          startGame();
+        } else if (
+          gameState === "playing" ||
+          gameState === "paused"
+        ) {
+          togglePause();
+        }
+        return;
+      }
+
+      if (key === "Enter") {
+        if (
+          gameState === "ready" ||
+          gameState === "gameover"
+        ) {
+          startGame();
+        } else if (gameState === "paused") {
+          startGame();
+        }
+        return;
+      }
+
+      const newDirection = DIRECTIONS[key];
+      if (!newDirection) return;
+
+      if (gameState === "ready") {
+        startGame();
+      }
+
+      queueDirection(newDirection);
+    });
+
+    elements.startBtn.addEventListener("click", startGame);
+    elements.resumeBtn.addEventListener("click", startGame);
+    elements.restartBtn.addEventListener("click", restartGame
